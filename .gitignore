@@ -1,0 +1,9 @@
+__pycache__/
+.venv/
+.pytest_cache/
+.DS_Store
+
+# the database is uploaded to GitHub Releases by the nightly job, not committed
+data/*.db
+data/*.db.gz
+data/*.copy
