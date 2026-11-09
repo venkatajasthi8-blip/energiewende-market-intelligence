@@ -5,13 +5,7 @@ power prices behave: cheap (sometimes negative) prices at sunny middays, expensi
 and solar farms earning less than the average price. This project collects the public market
 data every day, checks it, stores it, and turns it into analysis and a price forecast.
 
-## Why I built this
-
-I study in Germany and kept reading about negative electricity prices and the Energiewende.
-I wanted to understand what actually drives the price, and to practise building a real data
-pipeline on live, messy public data instead of a ready-made dataset.
-
-**Live dashboard:** [energiewende-market-intelligence.streamlit.app](https://energiewende-market-intelligence-dbhpkisxqxwrymfdue6wtg.streamlit.app/)
+**Live dashboard:** https://energiewende-market-intelligence-dbhpkisxqxwrymfdue6wtg.streamlit.app/
 
 ## What it does
 
@@ -37,15 +31,40 @@ pipeline on live, messy public data instead of a ready-made dataset.
 A GitHub Action runs the pipeline every morning and uploads the database as a GitHub
 Release, and the dashboard downloads it from there. No database server and no costs.
 
-## Key findings
+## Key findings (as of 10 Nov 2026)
 
-<!-- run `python -m emi.report` on the real data and paste the table here -->
+For the latest numbers, see the [live dashboard](https://energiewende-market-intelligence-dbhpkisxqxwrymfdue6wtg.streamlit.app/).
+
+Data from 1 Jan 2024 to 10 Nov 2026, 25,079 hourly prices.
+
+| Finding | Value |
+|---|---|
+| Average day-ahead price | €94.50/MWh |
+| Renewable share of generation | 59.3% |
+| Hours with negative prices | 1,492, most often at 13:00 |
+| Price increase per extra GW of residual load (last 12 months) | €2.93/MWh (R² 0.53) |
+| Average solar capture rate | 0.68 |
+| Average wind capture rate | 0.87 |
+| 1 MW / 2 MWh battery, last 12 months (best case) | €85,498 |
+| Forecast error vs 'same as yesterday' (last 8 weeks) | 3% higher (€46.2 vs €45.0/MWh) |
+
+**What stands out**
+- Renewables produced almost 60% of the electricity, but solar earned only about 68% of the
+  average price, because all panels produce at the same time and push the price down.
+- Prices went below zero in 1,492 hours, most often at 13:00, right at the solar peak.
+- Each extra GW of demand left for coal and gas added about €2.90/MWh to the price.
+- A small battery could have earned up to about €85,000 per MW in a year (best case).
+- My price forecast doesn't beat simply copying yesterday's prices yet (€46.2 vs €45.0/MWh
+  average error), though it makes fewer very large mistakes (RMSE €61 vs €63). Predicting
+  the change from yesterday instead of the price itself cut the error from €48.0 to €46.2.
+  Even a model that sees the actual wind and solar output is only 23% better, so adding
+  weather forecasts is the next step.
 
 ## Dashboard
 
-<!-- add screenshots here, for example:
 ![Overview](screenshots/overview.png)
--->
+![Merit order](screenshots/merit_order.png)
+![Price heatmap](screenshots/price_heatmap.png)
 
 The dashboard has eight tabs: overview, merit order, solar & wind value, negative prices,
 battery value, forecast, data quality and the weekly brief.
@@ -100,6 +119,7 @@ tests/           20 tests, no internet needed
 
 Bundesnetzagentur | SMARD.de, licensed under CC BY 4.0.
 
-   ## Author
-   **Venkata Praveen Jasthi**, B.Sc. student 
-   [LinkedIn](https://www.linkedin.com/in/venkata-praveen-jasthi-825070357/) · [GitHub](https://github.com/venkatajasthi8-blip)
+## Author
+
+**Venkata Praveen Jasthi**, B.Sc. student
+[LinkedIn](https://www.linkedin.com/in/venkata-praveen-jasthi-825070357/) · [GitHub](https://github.com/venkatajasthi8-blip)
