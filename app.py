@@ -1,260 +1,8 @@
-# """Streamlit dashboard.   Run with:  streamlit run app.py"""
-# import sqlite3
-# import time
-# import urllib.request
-
-# import pandas as pd
-# import plotly.express as px
-# import plotly.graph_objects as go
-# import streamlit as st
-
-# from emi import analysis as A
-# from emi import db
-# from emi.config import DATA_URL, DB_PATH, GENERATION, SERIES
-# from emi.forecast import MODEL_NAMES
-
-# st.set_page_config(page_title="Energiewende Market Intelligence", page_icon="⚡", layout="wide")
-
-# RED, GREEN = "#C1121F", "#2A9D8F"
-# COLORS = {"solar": "#F2B705", "wind_onshore": "#2E86AB", "wind_offshore": "#1B4F72",
-#           "biomass": "#6A994E", "hydro": "#48CAE4", "other_renewables": "#A7C957",
-#           "lignite": "#7F5539", "hard_coal": "#3D3D3D", "gas": "#E76F51", "nuclear": "#9B5DE5",
-#           "other_conventional": "#ADB5BD", "pumped_storage": "#00B4D8"}
-
-
-# def get_database():
-#     # Online, the app downloads the database that GitHub Actions publishes every night.
-#     # It downloads again when its copy is older than 12 hours.
-#     old = not DB_PATH.exists() or time.time() - DB_PATH.stat().st_mtime > 12 * 3600
-#     if DATA_URL and old:
-#         with st.spinner("Downloading latest data..."):
-#             gz = DB_PATH.with_suffix(".db.gz")
-#             DB_PATH.parent.mkdir(exist_ok=True)
-#             urllib.request.urlretrieve(DATA_URL, gz)
-#             db.import_gz(gz, DB_PATH)
-#             gz.unlink()
-#     return DB_PATH if DB_PATH.exists() else None
-
-
-# @st.cache_data(ttl=3600)
-# def load(path, modified):  # `modified` makes the cache refresh when the file changes
-#     con = sqlite3.connect(path)
-#     sql = lambda q: pd.read_sql(q, con)  # noqa: E731
-#     data = {
-#         "df": A.prepare(db.read_hourly(con)),
-#         "runs": sql("SELECT * FROM runs ORDER BY run_id DESC"),
-#         "checks": sql("SELECT * FROM quality_checks WHERE run_id = (SELECT MAX(run_id) FROM quality_checks)"),
-#         "bad_rows": sql("SELECT * FROM bad_rows ORDER BY ts_utc DESC LIMIT 500"),
-#         "results": sql("SELECT * FROM forecast_results"),
-#         "scores": sql("SELECT * FROM forecast_scores WHERE run_id = (SELECT MAX(run_id) FROM forecast_scores)"),
-#         "briefs": sql("SELECT * FROM briefs ORDER BY rowid DESC LIMIT 20"),
-#     }
-#     con.close()
-#     data["results"]["ts_utc"] = pd.to_datetime(data["results"]["ts_utc"], utc=True)
-#     return data
-
-
-# path = get_database()
-# if path is None:
-#     st.title("⚡ Energiewende Market Intelligence")
-#     st.info("No data yet. Run `python -m emi.pipeline` (real data) or "
-#             "`python -m emi.pipeline --demo` (offline demo) first.")
-#     st.stop()
-
-# data = load(str(path), path.stat().st_mtime)
-# everything = data["df"]
-# runs = data["runs"]
-
-# # ---------------- sidebar
-# st.sidebar.title("⚡ Energiewende")
-# first_day, last_day = everything["date"].min(), everything["date"].max()
-# default_start = max(first_day, last_day - pd.Timedelta(days=90))
-# picked = st.sidebar.date_input("Period", (default_start, last_day), min_value=first_day, max_value=last_day)
-# start, end = picked if len(picked) == 2 else (default_start, last_day)
-# df = everything[(everything["date"] >= start) & (everything["date"] <= end)]
-# days = (end - start).days + 1
-# before = everything[(everything["date"] < start) & (everything["date"] >= start - pd.Timedelta(days=days))]
-
-# if not runs.empty:
-#     r = runs.iloc[0]
-#     st.sidebar.write(f"Last update: {r['finished'] or r['started']} UTC")
-#     st.sidebar.write(f"Status: `{r['status']}`")
-# st.sidebar.caption("Data: Bundesnetzagentur | SMARD.de (CC BY 4.0)")
-
-# st.title("Energiewende Market Intelligence")
-# st.caption("How wind, solar and demand drive German electricity prices.")
-# if not runs.empty and runs.iloc[0]["source"] == "demo":
-#     st.warning("This is **demo data**. Run `python -m emi.pipeline` to load the real data.")
-# if df.empty:
-#     st.error("No data in this period.")
-#     st.stop()
-
-# tabs = st.tabs(["Overview", "Merit order", "Solar & wind value", "Negative prices & batteries",
-#                 "Forecast", "Data quality", "Weekly brief"])
-
-# # ---------------- overview
-# with tabs[0]:
-#     k = A.kpis(df)
-#     k0 = A.kpis(before) if not before.empty else {}
-
-#     def change(key, scale=1, fmt="{:+.1f}"):
-#         return fmt.format((k[key] - k0[key]) * scale) if key in k0 else None
-
-#     c = st.columns(5)
-#     c[0].metric("Average price", f"€{k['avg_price']:.2f}/MWh", change("avg_price"), delta_color="inverse")
-#     c[1].metric("Volatility", f"{k['volatility']:.1f} €/MWh", change("volatility"), delta_color="inverse")
-#     c[2].metric("Negative-price hours", k["negative_hours"], change("negative_hours", fmt="{:+.0f}"), delta_color="off")
-#     c[3].metric("Renewable share", f"{k['renewable_share']:.1%}", change("renewable_share", 100, "{:+.1f} pp"))
-#     c[4].metric("Average load", f"{k['avg_load_gw']:.1f} GW", change("avg_load_gw"), delta_color="off")
-#     st.caption(f"Compared with the {days} days before. Price data for {k['coverage']:.1%} of hours.")
-
-#     daily = df.groupby("date").agg(price=("price", "mean"), ren=("renewables", "sum"),
-#                                    gen=("generation", "sum")).reset_index()
-#     fig = go.Figure()
-#     fig.add_bar(x=daily["date"], y=daily["ren"] / daily["gen"] * 100, name="Renewable share %",
-#                 marker_color=GREEN, opacity=0.35, yaxis="y2")
-#     fig.add_scatter(x=daily["date"], y=daily["price"], name="Average price €/MWh", line={"color": RED})
-#     fig.update_layout(title="More renewables, lower prices", height=420,
-#                       yaxis={"title": "€/MWh"},
-#                       yaxis2={"title": "%", "overlaying": "y", "side": "right", "range": [0, 100]})
-#     st.plotly_chart(fig, use_container_width=True)
-
-#     mix = A.generation_mix(df, "W" if days > 60 else "D").reset_index(names="period")
-#     mix = mix.melt(id_vars="period", var_name="source", value_name="TWh")
-#     fig = px.area(mix, x="period", y="TWh", color="source", title="Generation by source",
-#                   color_discrete_map=COLORS)
-#     st.plotly_chart(fig, use_container_width=True)
-
-# # ---------------- merit order
-# with tabs[1]:
-#     st.subheader("Merit order: why demand left after wind and solar sets the price")
-#     st.write("Power plants are used from cheapest to most expensive. Residual load "
-#              "(demand minus wind and solar) decides how expensive the last plant needed is.")
-#     mo = A.merit_order(df)
-#     if mo is None:
-#         st.info("Not enough data in this period.")
-#     else:
-#         c = st.columns(3)
-#         c[0].metric("Price per extra GW", f"€{mo['slope']:.2f}/MWh")
-#         c[1].metric("R²", f"{mo['r2']:.2f}")
-#         c[2].metric("Hours", f"{mo['hours']:,}")
-#         dots = df.dropna(subset=["price", "residual_load"])
-#         dots = dots.sample(min(len(dots), 4000), random_state=1)
-#         fig = px.scatter(x=dots["residual_load"] / 1000, y=dots["price"], opacity=0.25,
-#                          labels={"x": "Residual load (GW)", "y": "Price (€/MWh)"})
-#         b = mo["bands"]
-#         fig.add_scatter(x=b["gw"], y=b["high"], line={"width": 0}, showlegend=False)
-#         fig.add_scatter(x=b["gw"], y=b["low"], fill="tonexty", line={"width": 0},
-#                         fillcolor="rgba(193,18,31,0.15)", name="10-90% of hours")
-#         fig.add_scatter(x=b["gw"], y=b["median"], name="Median price", line={"color": RED, "width": 3})
-#         fig.update_layout(height=500, title="Each dot is one hour")
-#         st.plotly_chart(fig, use_container_width=True)
-
-# # ---------------- capture rates
-# with tabs[2]:
-#     st.subheader("What is solar and wind power actually worth?")
-#     st.write("The capture rate is the price solar or wind actually earned divided by the average price. "
-#              "Because all solar panels produce at the same time, they push the price down exactly "
-#              "when they produce, so solar usually earns less than average.")
-#     cr = A.capture_rates(df)
-#     fig = go.Figure()
-#     fig.add_scatter(x=cr["month"], y=cr["solar_capture_rate"], name="Solar", line={"color": COLORS["solar"], "width": 3})
-#     fig.add_scatter(x=cr["month"], y=cr["wind_capture_rate"], name="Wind", line={"color": COLORS["wind_onshore"], "width": 3})
-#     fig.add_hline(y=1, line_dash="dot", annotation_text="average price")
-#     fig.update_layout(title="Capture rate per month", height=420)
-#     st.plotly_chart(fig, use_container_width=True)
-
-#     by_hour = A.price_by_hour(df)
-#     fig = px.line(by_hour, x="hour", y=[c for c in ("workday", "weekend_holiday") if c in by_hour],
-#                   markers=True, title="Average price by hour of the day",
-#                   labels={"value": "€/MWh", "variable": ""})
-#     st.plotly_chart(fig, use_container_width=True)
-
-# # ---------------- negative prices and batteries
-# with tabs[3]:
-#     neg = A.negative_prices(df)
-#     c = st.columns(3)
-#     c[0].metric("Negative-price hours", neg["count"])
-#     c[1].metric("Lowest price", "-" if pd.isna(neg["lowest"]) else f"€{neg['lowest']:.2f}")
-#     if neg["count"]:
-#         c[2].metric("Renewable share in those hours", f"{neg['renewable_share_when_negative']:.0%}",
-#                     f"vs {neg['renewable_share_otherwise']:.0%} otherwise", delta_color="off")
-#     left, right = st.columns(2)
-#     left.plotly_chart(px.bar(x=neg["by_hour"].index, y=neg["by_hour"].values, title="At what time?",
-#                              labels={"x": "Hour", "y": "Hours"}, color_discrete_sequence=[RED]),
-#                       use_container_width=True)
-#     right.plotly_chart(px.bar(x=neg["by_month"].index, y=neg["by_month"].values, title="Per month",
-#                               labels={"x": "", "y": "Hours"}, color_discrete_sequence=[RED]),
-#                        use_container_width=True)
-
-#     st.subheader("Battery: buy cheap, sell expensive")
-#     c = st.columns(2)
-#     hours = c[0].select_slider("Battery size (hours of storage)", [1, 2, 4], value=2)
-#     eff = c[1].slider("Efficiency", 0.70, 0.95, 0.88)
-#     bv = A.battery_value(df, hours, eff)
-#     if not bv.empty:
-#         st.metric(f"1 MW / {hours} MWh battery, whole period (best case)", f"€{bv['revenue'].sum():,.0f}")
-#         st.plotly_chart(px.bar(bv, x="date", y="revenue", title="Revenue per day",
-#                                color_discrete_sequence=[GREEN]), use_container_width=True)
-#     st.caption("Best case: one charge/discharge per day, prices known in advance, no fees or battery wear.")
-
-# # ---------------- forecast
-# with tabs[4]:
-#     st.subheader("Forecasting tomorrow's prices")
-#     scores = data["scores"]
-#     if scores.empty:
-#         st.info("No forecast yet (needs about 4 months of data).")
-#     else:
-#         scores["description"] = scores["model"].map(MODEL_NAMES)
-#         st.dataframe(scores[["model", "description", "mae", "rmse", "rmae"]].round(2), hide_index=True)
-#         st.caption("MAE = average error in €/MWh. rMAE below 1 = better than copying yesterday's price. "
-#                    "Each week is predicted by a model trained only on earlier data. "
-#                    "The oracle sees the real weather, so it is only an upper limit, not a forecast.")
-#         res = data["results"]
-#         recent = res[res["ts_utc"] >= res["ts_utc"].max() - pd.Timedelta(days=14)]
-#         chosen = st.multiselect("Show", list(MODEL_NAMES), default=["gradient_boosting", "same_as_yesterday"])
-#         actual = recent.drop_duplicates("ts_utc").sort_values("ts_utc")
-#         fig = go.Figure()
-#         fig.add_scatter(x=actual["ts_utc"], y=actual["actual"], name="Actual", line={"color": "black"})
-#         for m in chosen:
-#             s = recent[recent["model"] == m].sort_values("ts_utc")
-#             fig.add_scatter(x=s["ts_utc"], y=s["predicted"], name=m)
-#         fig.update_layout(title="Last 14 days: forecast vs actual", yaxis_title="€/MWh", height=440)
-#         st.plotly_chart(fig, use_container_width=True)
-
-# # ---------------- data quality
-# with tabs[5]:
-#     st.subheader("Data quality")
-#     checks = data["checks"]
-#     if not checks.empty:
-#         st.dataframe(checks.pivot(index="series_key", columns="check", values="status"))
-#         problems = checks[checks["status"] != "pass"]
-#         if not problems.empty:
-#             st.write("**Problems found**")
-#             st.dataframe(problems[["series_key", "check", "status", "detail"]], hide_index=True)
-#     complete = df[["price", "load", "residual_load"] + GENERATION].notna().mean() * 100
-#     complete.index = [SERIES[k][1] for k in complete.index]
-#     st.plotly_chart(px.bar(x=complete.values, y=complete.index, orientation="h", range_x=[0, 100],
-#                            title="% of hours with data", labels={"x": "%", "y": ""},
-#                            color_discrete_sequence=[GREEN]), use_container_width=True)
-#     st.write("**Rows rejected by the plausibility check** (kept here, not used in the analysis)")
-#     st.dataframe(data["bad_rows"], hide_index=True)
-#     st.write("**Pipeline runs**")
-#     st.dataframe(runs, hide_index=True)
-
-# # ---------------- brief
-# with tabs[6]:
-#     briefs = data["briefs"]
-#     if briefs.empty:
-#         st.info("No brief yet.")
-#     else:
-#         st.markdown(briefs.iloc[0]["text_md"])
-#         st.download_button("Download as Markdown", briefs.iloc[0]["text_md"], "weekly_brief.md")
-
-
+import os
 import sqlite3
 import time
 import urllib.request
+import uuid
 from datetime import timedelta
 
 import pandas as pd
@@ -336,14 +84,30 @@ def tidy(fig, height=360, legend=True, hover="x unified"):
 def get_database():
     # online the app pulls the database that the nightly GitHub Action publishes
     too_old = not DB_PATH.exists() or time.time() - DB_PATH.stat().st_mtime > 12 * 3600
-    if DATA_URL and too_old:
+    if not (DATA_URL and too_old):
+        return DB_PATH if DB_PATH.exists() else None
+
+    # every download gets its own file names, because two visitors can open the app at the
+    # same moment. The finished database is swapped in at the end with os.replace.
+    DB_PATH.parent.mkdir(exist_ok=True)
+    tmp = DB_PATH.with_name(f"download-{uuid.uuid4().hex}")
+    gz = tmp.with_suffix(".gz")
+    try:
         with st.spinner("Downloading the latest data..."):
-            gz = DB_PATH.with_suffix(".db.gz")
-            DB_PATH.parent.mkdir(exist_ok=True)
             urllib.request.urlretrieve(DATA_URL, gz)
-            db.import_gz(gz, DB_PATH)
-            gz.unlink()
-    return DB_PATH if DB_PATH.exists() else None
+            db.import_gz(gz, tmp)
+            os.replace(tmp, DB_PATH)
+    except Exception as e:
+        if not DB_PATH.exists():
+            st.error(f"Couldn't download the data ({e}). Check that the 'refresh data' GitHub Action "
+                     "has finished and that EMI_DATA_URL points to the energy.db.gz file of the "
+                     "'data' release.")
+            st.stop()
+        st.warning("Couldn't download the newest data, showing the last copy instead.")
+    finally:
+        gz.unlink(missing_ok=True)
+        tmp.unlink(missing_ok=True)
+    return DB_PATH
 
 
 @st.cache_data(ttl=3600)
