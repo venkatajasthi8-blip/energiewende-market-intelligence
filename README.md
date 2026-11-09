@@ -5,7 +5,13 @@ power prices behave: cheap (sometimes negative) prices at sunny middays, expensi
 and solar farms earning less than the average price. This project collects the public market
 data every day, checks it, stores it, and turns it into analysis and a price forecast.
 
-**Live dashboard:** https://energiewende-market-intelligence-dbhpkisxqxwrymfdue6wtg.streamlit.app/
+## Why I built this
+
+I study in Germany and kept reading about negative electricity prices and the Energiewende.
+I wanted to understand what actually drives the price, and to practise building a real data
+pipeline on live, messy public data instead of a ready-made dataset.
+
+**Live dashboard:** [energiewende-market-intelligence.streamlit.app](https://energiewende-market-intelligence-dbhpkisxqxwrymfdue6wtg.streamlit.app/)
 
 ## What it does
 
@@ -95,4 +101,5 @@ tests/           20 tests, no internet needed
 Bundesnetzagentur | SMARD.de, licensed under CC BY 4.0.
 
    ## Author
-   Venkata Praveen Jasthi, B.Sc. student · [LinkedIn](https://www.linkedin.com/in/venkata-praveen-jasthi-825070357/) · [GitHub](https://github.com/venkatajasthi8-blip)
+   **Venkata Praveen Jasthi**, B.Sc. student 
+   [LinkedIn](https://www.linkedin.com/in/venkata-praveen-jasthi-825070357/) · [GitHub](https://github.com/venkatajasthi8-blip)
