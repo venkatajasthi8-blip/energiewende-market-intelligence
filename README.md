@@ -114,7 +114,7 @@ flowchart LR
 ## Dashboard
 
 ![Merit order](screenshots/merit_order.png)
-![Price heatmap](screenshots/heatmap.png)
+![Price heatmap](screenshots/price_heatmap.png)
 
 The dashboard has eight tabs: overview, merit order, solar & wind value, negative prices,
 battery value, forecast, data quality and the weekly brief. The period can be switched between
