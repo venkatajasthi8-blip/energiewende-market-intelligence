@@ -85,8 +85,14 @@ def backtest(df, test_days=56, step_days=7, min_train_days=60):
         out = pd.DataFrame({"actual": test["price"]})
         out["same_as_yesterday"] = test["price_24h_ago"]
         out["same_as_last_week"] = test["price_week_ago"]
-        out["gradient_boosting"] = new_model().fit(train[FEATURES], train["price"]).predict(test[FEATURES])
-        out["oracle"] = new_model().fit(train[ORACLE_FEATURES], train["price"]).predict(test[ORACLE_FEATURES])
+        # the models predict how much the price changes compared with yesterday,
+        # not the price itself. Trees can't predict values outside what they've seen,
+        # so this works much better when the price level moves.
+        change = train["price"] - train["price_24h_ago"]
+        ok = change.notna()
+        for name, cols in (("gradient_boosting", FEATURES), ("oracle", ORACLE_FEATURES)):
+            model = new_model().fit(train.loc[ok, cols], change[ok])
+            out[name] = test["price_24h_ago"] + model.predict(test[cols])
         results.append(out)
         week = week_end
 

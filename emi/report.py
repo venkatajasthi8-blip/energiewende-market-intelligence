@@ -43,8 +43,9 @@ def key_findings(db_path=DB_PATH):
     lines.append(f"| Average wind capture rate | {cr['wind_capture_rate'].mean():.2f} |")
     lines.append(f"| 1 MW / 2 MWh battery, last 12 months (best case) | €{battery['revenue'].sum():,.0f} |")
     if not scores.empty:
-        better = (1 - scores.loc["gradient_boosting", "rmae"]) * 100
-        lines.append(f"| Forecast error vs 'same as yesterday' | {better:.0f}% lower "
+        diff = (1 - scores.loc["gradient_boosting", "rmae"]) * 100
+        word = "lower" if diff >= 0 else "higher"
+        lines.append(f"| Forecast error vs 'same as yesterday' | {abs(diff):.0f}% {word} "
                      f"(€{scores.loc['gradient_boosting', 'mae']:.1f} vs "
                      f"€{scores.loc['same_as_yesterday', 'mae']:.1f}/MWh) |")
     return "\n".join(lines)
